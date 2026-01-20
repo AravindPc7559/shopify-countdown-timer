@@ -7,6 +7,12 @@ import serveStatic from "serve-static";
 import shopify from "./shopify.js";
 import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
+import connectDB from "./db/mongodb.js";
+
+// Connect to MongoDB (non-blocking - app will continue even if MongoDB fails)
+connectDB().catch((error) => {
+  console.error('Failed to connect to MongoDB:', error);
+});
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -40,19 +46,27 @@ app.use("/api/*", shopify.validateAuthenticatedSession());
 app.use(express.json());
 
 app.get("/api/products/count", async (_req, res) => {
-  const client = new shopify.api.clients.Graphql({
-    session: res.locals.shopify.session,
-  });
+  try {
+    const client = new shopify.api.clients.Graphql({
+      session: res.locals.shopify.session,
+    });
 
-  const countData = await client.request(`
-    query shopifyProductCount {
-      productsCount {
-        count
+    const countData = await client.request(`
+      query shopifyProductCount {
+        productsCount {
+          count
+        }
       }
-    }
-  `);
+    `);
 
-  res.status(200).send({ count: countData.data.productsCount.count });
+    res.status(200).send({ count: countData.data.productsCount.count });
+  } catch (error) {
+    console.error("Error fetching product count:", error.message);
+    res.status(500).send({ 
+      error: error.message || "Failed to fetch product count",
+      count: 0 
+    });
+  }
 });
 
 app.post("/api/products", async (_req, res) => {
