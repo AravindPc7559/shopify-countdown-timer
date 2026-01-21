@@ -1,43 +1,16 @@
-/**
- * Countdown Timer Widget
- * Lightweight Preact-based widget for displaying countdown timers on product pages
- * Target bundle size: <30KB gzipped
- */
-
 (function () {
   'use strict';
 
-  // Preact-like minimal implementation for lightweight bundle
-  const h = (tag, props, ...children) => {
-    const el = typeof tag === 'string' ? document.createElement(tag) : tag();
-    if (props) {
-      Object.keys(props).forEach(key => {
-        if (key === 'style' && typeof props.style === 'object') {
-          Object.assign(el.style, props.style);
-        } else if (key === 'className') {
-          el.className = props.className;
-        } else if (key.startsWith('on') && typeof props[key] === 'function') {
-          el.addEventListener(key.slice(2).toLowerCase(), props[key]);
-        } else if (key !== 'children') {
-          el.setAttribute(key, props[key]);
-        }
-      });
-    }
-    children.forEach(child => {
-      if (typeof child === 'string' || typeof child === 'number') {
-        el.appendChild(document.createTextNode(child));
-      } else if (child) {
-        el.appendChild(child);
-      }
-    });
+  const createElement = (tag, className, text) => {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text) el.textContent = text;
     return el;
   };
 
-  // Timer state management
   class CountdownTimer {
-    constructor(container, config) {
+    constructor(container) {
       this.container = container;
-      this.config = config;
       this.timer = null;
       this.intervalId = null;
       this.isUrgent = false;
@@ -48,10 +21,7 @@
       try {
         await this.fetchTimer();
       } catch (error) {
-        console.error('Countdown timer error:', error);
-        // Fail silently - don't break storefront
         this.container.style.display = 'none';
-        return;
       }
     }
 
@@ -60,92 +30,50 @@
       const shop = this.container.dataset.shop;
       let apiUrl = this.container.dataset.apiUrl;
 
-      console.log('Countdown Timer: Fetching timer data', { productId, shop, apiUrl });
-
       if (!productId || !shop) {
-        console.warn('Countdown Timer: Missing productId or shop', { productId, shop });
         this.container.style.display = 'none';
         return;
       }
 
-      // Extract numeric ID from GID format if present (e.g., "gid://shopify/Product/123456" -> "123456")
       if (productId.includes('/')) {
-        const parts = productId.split('/');
-        productId = parts[parts.length - 1];
-        console.log('Countdown Timer: Extracted product ID from GID', productId);
+        productId = productId.split('/').pop();
       }
 
-      // Construct API URL from shop domain if not provided
-      if (!apiUrl || apiUrl.trim() === '') {
-        // Try to get API URL from meta tag
+      if (!apiUrl || !apiUrl.trim()) {
         const apiUrlMeta = document.querySelector('meta[name="countdown-timer-api-url"]');
-        if (apiUrlMeta) {
-          apiUrl = apiUrlMeta.getAttribute('content');
-        } else {
-          // Don't use window.location.origin as fallback - it's the storefront, not the app
-          console.error('Countdown Timer: API URL not configured!', {
-            message: 'Please set the App API URL in the Countdown Timer block settings.',
-            currentOrigin: window.location.origin,
-            instruction: 'When running "npm run dev", copy the tunnel URL from your terminal and paste it in the block settings.'
-          });
+        apiUrl = apiUrlMeta ? apiUrlMeta.getAttribute('content') : null;
+        
+        if (!apiUrl) {
           this.container.style.display = 'none';
-          // Show error message in development
-          if (window.location.hostname.includes('myshopify.com') || window.location.hostname === 'localhost') {
-            this.container.innerHTML = '<div style="padding: 1rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">⚠️ Countdown Timer: Please configure the App API URL in the block settings.</div>';
-            this.container.style.display = 'block';
-          }
           return;
         }
       }
 
-      const apiEndpoint = `${apiUrl}/api/timers/public/${productId}?shop=${encodeURIComponent(shop)}`;
-      console.log('Countdown Timer: API endpoint', apiEndpoint);
-
       try {
-        const response = await fetch(apiEndpoint, {
+        const endpoint = `${apiUrl}/api/timers/public/${productId}?shop=${encodeURIComponent(shop)}`;
+        const response = await fetch(endpoint, {
           method: 'GET',
           mode: 'cors',
           cache: 'default',
         });
 
-        console.log('Countdown Timer: API response status', response.status);
-
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Countdown Timer: API error', {
-            status: response.status,
-            statusText: response.statusText,
-            body: errorText
-          });
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          throw new Error(`HTTP ${response.status}`);
         }
 
         const data = await response.json();
-        console.log('Countdown Timer: API response data', data);
 
         if (data.timer) {
           this.timer = data.timer;
-          console.log('Countdown Timer: Timer found, rendering', this.timer);
-          // Make sure container is visible
           this.container.style.display = 'block';
           this.render();
           this.startCountdown();
           this.trackImpression();
         } else {
-          console.log('Countdown Timer: No active timer found for this product');
-          console.log('Countdown Timer: Full API response was:', data);
-          // Hide container if no timer
           this.container.style.display = 'none';
         }
       } catch (error) {
-        // Log error for debugging but don't break storefront
-        console.error('Countdown Timer: Failed to fetch timer', {
-          error: error.message,
-          productId,
-          shop,
-          apiUrl,
-          stack: error.stack
-        });
+        this.container.style.display = 'none';
       }
     }
 
@@ -155,25 +83,15 @@
       let apiUrl = this.container.dataset.apiUrl;
       if (!apiUrl) {
         const apiUrlMeta = document.querySelector('meta[name="countdown-timer-api-url"]');
-        apiUrl = apiUrlMeta ? apiUrlMeta.getAttribute('content') : window.location.origin;
+        apiUrl = apiUrlMeta ? apiUrlMeta.getAttribute('content') : null;
       }
 
-      const impressionUrl = `${apiUrl}/api/timers/public/impression?timerId=${encodeURIComponent(this.timer.id)}`;
+      if (!apiUrl) return;
+
+      const url = `${apiUrl}/api/timers/public/impression?timerId=${encodeURIComponent(this.timer.id)}`;
       
-      fetch(impressionUrl, {
-        method: 'GET',
-        mode: 'cors',
-      })
-        .then(response => {
-          if (response.ok) {
-            console.log('[COUNTDOWN TIMER] ✅ Impression tracked successfully');
-          } else {
-            console.warn('[COUNTDOWN TIMER] ⚠️ Impression tracking failed:', response.status);
-          }
-        })
-        .catch((error) => {
-          console.warn('[COUNTDOWN TIMER] ⚠️ Impression tracking error (non-critical):', error.message);
-        });
+      fetch(url, { method: 'GET', mode: 'cors' })
+        .catch(() => {});
 
       this.impressionTracked = true;
     }
@@ -184,31 +102,23 @@
       let endTime;
 
       if (this.timer.type === 'evergreen') {
-        // Evergreen timer: session-based, stored in localStorage
         const storageKey = `countdown_timer_${this.timer.id}`;
         let startTime = localStorage.getItem(storageKey);
 
         if (!startTime) {
-          // First visit - initialize timer
           startTime = Date.now();
           localStorage.setItem(storageKey, startTime.toString());
         }
 
-        const duration = this.timer.duration * 1000; // Convert to milliseconds
-        endTime = parseInt(startTime) + duration;
+        endTime = parseInt(startTime) + (this.timer.duration * 1000);
       } else {
-        // Fixed timer: use endDate from server
         endTime = new Date(this.timer.endDate).getTime();
       }
 
-      const now = Date.now();
-      const remaining = Math.max(0, endTime - now);
+      const remaining = Math.max(0, endTime - Date.now());
 
-      // Check if timer expired
       if (remaining === 0 && this.timer.type === 'evergreen') {
-        // Reset evergreen timer
-        const storageKey = `countdown_timer_${this.timer.id}`;
-        localStorage.removeItem(storageKey);
+        localStorage.removeItem(`countdown_timer_${this.timer.id}`);
         this.container.style.display = 'none';
         return null;
       }
@@ -231,22 +141,20 @@
       };
     }
 
+    createTimeUnit(unit, value) {
+      const unitEl = createElement('div', `countdown-timer-unit countdown-timer-${unit}`);
+      const valueEl = createElement('span', 'countdown-timer-value', value);
+      const labelEl = createElement('span', 'countdown-timer-label', unit.charAt(0).toUpperCase() + unit.slice(1));
+      
+      unitEl.appendChild(valueEl);
+      unitEl.appendChild(labelEl);
+      return unitEl;
+    }
+
     render() {
       const remaining = this.getRemainingTime();
 
-      console.log('Countdown Timer: Rendering with remaining time', {
-        remaining,
-        remainingMs: remaining,
-        timer: this.timer
-      });
-
       if (remaining === null || remaining === 0) {
-        console.warn('Countdown Timer: Timer expired or invalid remaining time', {
-          remaining,
-          timer: this.timer,
-          endDate: this.timer?.endDate,
-          type: this.timer?.type
-        });
         this.container.style.display = 'none';
         return;
       }
@@ -260,46 +168,31 @@
       const time = this.formatTime(remaining);
       const hoursTotal = Math.floor(remaining / 3600000);
 
-      // Check if urgent (< 1 hour remaining)
       const wasUrgent = this.isUrgent;
       this.isUrgent = hoursTotal < 1 && hoursTotal >= 0;
 
-      // Update container styles
       this.container.style.backgroundColor = backgroundColor;
       this.container.style.color = textColor;
       this.container.style.display = 'block';
 
-      // Add urgent class for animations
       if (this.isUrgent && !wasUrgent) {
         this.container.classList.add('countdown-timer-urgent');
       } else if (!this.isUrgent) {
         this.container.classList.remove('countdown-timer-urgent');
       }
 
-      // Position classes
-      this.container.className = this.container.className
-        .replace(/countdown-timer-position-\w+/g, '');
+      this.container.className = this.container.className.replace(/countdown-timer-position-\w+/g, '');
       this.container.classList.add(`countdown-timer-position-${position}`);
 
-      // Render timer display
       const existingDisplay = this.container.querySelector('.countdown-timer-display');
       if (existingDisplay) {
         existingDisplay.remove();
       }
 
-      const display = h('div', {
-        className: 'countdown-timer-display',
-      });
+      const display = createElement('div', 'countdown-timer-display');
+      const textEl = createElement('div', 'countdown-timer-text', text);
+      const timeEl = createElement('div', 'countdown-timer-time');
 
-      const textEl = h('div', {
-        className: 'countdown-timer-text',
-      }, text);
-
-      const timeEl = h('div', {
-        className: 'countdown-timer-time',
-      });
-
-      // Show days if > 0
       if (parseInt(time.days) > 0) {
         timeEl.appendChild(this.createTimeUnit('days', time.days));
       }
@@ -313,35 +206,13 @@
       this.container.appendChild(display);
     }
 
-    createTimeUnit(unit, value) {
-      const unitEl = h('div', {
-        className: `countdown-timer-unit countdown-timer-${unit}`,
-      });
-
-      const valueEl = h('span', {
-        className: 'countdown-timer-value',
-      }, value);
-
-      const labelEl = h('span', {
-        className: 'countdown-timer-label',
-      }, unit.substring(0, 1).toUpperCase() + unit.substring(1));
-
-      unitEl.appendChild(valueEl);
-      unitEl.appendChild(labelEl);
-
-      return unitEl;
-    }
-
     startCountdown() {
-      // Clear existing interval
       if (this.intervalId) {
         clearInterval(this.intervalId);
       }
 
-      // Initial render
       this.render();
 
-      // Update every second
       this.intervalId = setInterval(() => {
         const remaining = this.getRemainingTime();
 
@@ -364,62 +235,42 @@
     }
   }
 
-  // Initialize all timers on page load
   function initTimers() {
-    console.log('Countdown Timer: Initializing timers...');
     const containers = document.querySelectorAll('.countdown-timer-container[data-product-id]');
-    console.log('Countdown Timer: Found containers', containers.length);
 
-    if (containers.length === 0) {
-      console.warn('Countdown Timer: No timer containers found on page');
-      return;
-    }
-
-    containers.forEach((container, index) => {
-      console.log(`Countdown Timer: Initializing container ${index + 1}`, {
-        id: container.id,
-        productId: container.dataset.productId,
-        shop: container.dataset.shop
-      });
-
-      // Check if already initialized
+    containers.forEach((container) => {
       if (container.dataset.initialized === 'true') {
-        console.log('Countdown Timer: Container already initialized, skipping');
         return;
       }
 
       container.dataset.initialized = 'true';
-      const timer = new CountdownTimer(container, {});
+      const timer = new CountdownTimer(container);
       timer.init();
     });
   }
 
-  // Initialize when DOM is ready
   function initialize() {
     if (document.readyState === 'loading') {
-      console.log('Countdown Timer: DOM loading, waiting for DOMContentLoaded');
       document.addEventListener('DOMContentLoaded', initTimers);
     } else {
-      console.log('Countdown Timer: DOM ready, initializing immediately');
       initTimers();
     }
   }
 
-  // Initialize immediately if script loads after DOM is ready
   initialize();
 
-  // Also try after a short delay to catch dynamically loaded content
-  setTimeout(initTimers, 100);
-  setTimeout(initTimers, 500);
-
-  // Re-initialize on dynamic content load (for AJAX navigation)
   if (typeof window !== 'undefined') {
-    window.addEventListener('pageshow', () => {
-      console.log('Countdown Timer: Page shown, re-initializing');
-      initTimers();
-    });
+    window.addEventListener('pageshow', initTimers);
+    
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(() => {
+        initTimers();
+      });
+      
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
   }
-
-  console.log('Countdown Timer: Script loaded and initialized');
 })();
-
