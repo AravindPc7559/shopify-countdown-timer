@@ -2,7 +2,6 @@
   "HomePage": {
     "title": "Countdown Timer Dashboard",
     "welcome": "Welcome to Countdown Timer",
-    "description": "Create urgency and boost sales with countdown timers on your product pages. Set up fixed timers for promotions or evergreen timers that reset for each visitor.",
     "createTimer": "Create Timer",
     "totalTimers": "Total Timers",
     "activeTimers": "Active Timers",

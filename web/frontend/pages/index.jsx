@@ -51,9 +51,6 @@ export default function HomePage() {
               <Text as="h1" variant="headingLg">
                 {t("HomePage.welcome")}
               </Text>
-              <Text as="p" variant="bodyMd" color="subdued">
-                {t("HomePage.description")}
-              </Text>
             </Stack>
           </Card>
         </Layout.Section>

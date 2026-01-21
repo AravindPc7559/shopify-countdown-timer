@@ -3,7 +3,6 @@ import {
   calculateStatus,
   getShopFromRequest,
   handleDatabaseError,
-  setCORSHeaders,
   isTimerActive,
   buildTimerQuery,
   formatTimerForResponse,
@@ -131,23 +130,15 @@ export const deleteTimer = async (req, res) => {
 };
 
 export const getPublicTimer = async (req, res) => {
-  setCORSHeaders(res);
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   try {
     const { productId } = req.params;
     const shop = req.query?.shop;
 
     if (!shop) {
-      setCORSHeaders(res);
       return res.status(400).json({ error: 'Shop parameter is required' });
     }
 
     if (!productId) {
-      setCORSHeaders(res);
       return res.status(400).json({ error: 'Product ID is required' });
     }
 
@@ -166,19 +157,15 @@ export const getPublicTimer = async (req, res) => {
     res.set('Cache-Control', 'public, max-age=60');
     res.status(200).json({ timer: timerData });
   } catch (error) {
-    setCORSHeaders(res);
     handleDatabaseError(error, res, 'Failed to fetch timer');
   }
 };
 
 export const trackImpression = async (req, res) => {
-  setCORSHeaders(res);
-
   try {
     const { timerId } = req.query;
 
     if (!timerId) {
-      setCORSHeaders(res);
       return res.status(400).json({ error: 'Timer ID is required' });
     }
 
@@ -189,13 +176,11 @@ export const trackImpression = async (req, res) => {
     );
 
     if (!timer) {
-      setCORSHeaders(res);
       return res.status(404).json({ error: 'Timer not found' });
     }
 
     res.status(200).json({ success: true, impressions: timer.impressions });
   } catch (error) {
-    setCORSHeaders(res);
     handleDatabaseError(error, res, 'Failed to track impression');
   }
 };

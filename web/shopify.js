@@ -1,7 +1,6 @@
 import { BillingInterval, LATEST_API_VERSION } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file
@@ -60,7 +59,6 @@ const shopify = shopifyApp({
     scopes: scopes.length > 0 ? scopes : undefined,
     hostName: hostName,
     apiVersion: LATEST_API_VERSION,
-    restResources,
     future: {
       customerAddressDefaultFix: true,
       lineItemBilling: true,

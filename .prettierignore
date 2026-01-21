@@ -1,0 +1,12 @@
+node_modules/
+web/node_modules/
+web/frontend/node_modules/
+extensions/*/node_modules/
+dist/
+build/
+coverage/
+.shopify/
+web/database.sqlite
+*.min.js
+*.log
+package-lock.json

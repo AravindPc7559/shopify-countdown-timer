@@ -5,8 +5,6 @@ import {
   getTimer,
   updateTimer,
   deleteTimer,
-  getPublicTimer,
-  trackImpression,
 } from '../controllers/timerController.js';
 
 const router = express.Router();
@@ -18,8 +16,3 @@ router.put('/:id', updateTimer);
 router.delete('/:id', deleteTimer);
 
 export default router;
-
-export const publicRouter = express.Router();
-
-publicRouter.get('/impression', trackImpression);
-publicRouter.get('/:productId', getPublicTimer);

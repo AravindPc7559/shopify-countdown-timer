@@ -6,7 +6,11 @@
   "scripts": {
     "debug": "node --inspect-brk index.js",
     "dev": "cross-env NODE_ENV=development nodemon index.js --ignore ./frontend",
-    "serve": "cross-env NODE_ENV=production node index.js"
+    "serve": "cross-env NODE_ENV=production node index.js",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"**/*.{js,json}\"",
+    "format:check": "prettier --check \"**/*.{js,json}\""
   },
   "type": "module",
   "engines": {
@@ -24,6 +28,10 @@
     "serve-static": "^1.14.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "eslint-config-node": "^4.1.0",
+    "eslint-plugin-node": "^11.1.0",
     "nodemon": "^2.0.15",
     "prettier": "^2.6.2",
     "pretty-quick": "^3.1.3"

@@ -34,13 +34,6 @@ const handleDatabaseError = (error, res, defaultMessage) => {
   return res.status(500).json({ error: defaultMessage });
 };
 
-const setCORSHeaders = (res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Max-Age', '86400');
-};
-
 const isTimerActive = (timer) => {
   if (timer.type === 'evergreen') {
     return timer.status === 'active';
@@ -89,7 +82,6 @@ export {
   calculateStatus,
   getShopFromRequest,
   handleDatabaseError,
-  setCORSHeaders,
   isTimerActive,
   buildTimerQuery,
   formatTimerForResponse,

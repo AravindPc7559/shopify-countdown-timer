@@ -8,7 +8,8 @@ import shopify from "./shopify.js";
 import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 import connectDB from "./db/mongodb.js";
-import timerRoutes, { publicRouter } from "./routes/timers.js";
+import timerRoutes from "./routes/timers.js";
+import publicRoutes from "./routes/publicRoutes.js";
 
 connectDB().catch((error) => {
   console.error('Failed to connect to MongoDB:', error);
@@ -47,7 +48,7 @@ app.post(
 
 app.use(express.json());
 
-app.use("/api/timers/public", publicRouter);
+app.use("/api", publicRoutes);
 app.use("/api/*", shopify.validateAuthenticatedSession());
 app.use("/api/timers", timerRoutes);
 
