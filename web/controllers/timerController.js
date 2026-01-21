@@ -8,6 +8,7 @@ import {
   formatTimerForResponse,
   formatPublicTimerData,
 } from '../utils/timerUtils.js';
+import { validateAppearance } from '../utils/validationUtils.js';
 
 export const getTimers = async (req, res) => {
   try {
@@ -36,6 +37,10 @@ export const createTimer = async (req, res) => {
       ...req.body,
       shop,
     };
+
+    if (timerData.appearance) {
+      timerData.appearance = validateAppearance(timerData.appearance);
+    }
 
     if (timerData.type === 'fixed') {
       timerData.status = calculateStatus(timerData);
@@ -90,6 +95,11 @@ export const updateTimer = async (req, res) => {
     const timer = await Timer.findOne({ _id: id, shop });
     if (!timer) {
       return res.status(404).json({ error: 'Timer not found' });
+    }
+
+    // Ensure appearance is validated if being updated
+    if (req.body.appearance) {
+      req.body.appearance = validateAppearance(req.body.appearance);
     }
 
     Object.assign(timer, req.body);

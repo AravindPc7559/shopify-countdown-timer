@@ -6,13 +6,14 @@ import {
   updateTimer,
   deleteTimer,
 } from '../controllers/timerController.js';
+import { validateTimerInput } from '../middleware/validationMiddleware.js';
 
 const router = express.Router();
 
 router.get('/', getTimers);
-router.post('/', createTimer);
+router.post('/', validateTimerInput, createTimer);
 router.get('/:id', getTimer);
-router.put('/:id', updateTimer);
+router.put('/:id', validateTimerInput, updateTimer);
 router.delete('/:id', deleteTimer);
 
 export default router;
