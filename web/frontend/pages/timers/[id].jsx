@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Page,
   Layout,
@@ -9,12 +9,14 @@ import {
   Banner,
   Stack,
   Button,
+  Spinner,
+  Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import api from "../../utils/api.js";
 
 export default function TimerFormPage() {
   const { id } = useParams();
@@ -22,7 +24,6 @@ export default function TimerFormPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -41,21 +42,20 @@ export default function TimerFormPage() {
   });
 
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState(null);
+  const [isLoading, setIsLoading] = useState(!isNew);
+  const [fetchError, setFetchError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Fetch timer if editing
-  const { data, isLoading } = useQuery({
-    queryKey: ["timer", id],
-    queryFn: async () => {
-      const response = await fetch(`/api/timers/${id}`);
-      if (!response.ok) throw new Error("Failed to fetch timer");
-      return response.json();
-    },
-    enabled: !isNew,
-  });
+  const fetchTimer = async () => {
+    if (isNew) return;
 
-  useEffect(() => {
-    if (data?.timer) {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const data = await api.get(`/timers/${id}`);
       const timer = data.timer;
+
       setFormData({
         name: timer.name || "",
         type: timer.type || "fixed",
@@ -65,7 +65,7 @@ export default function TimerFormPage() {
         endDate: timer.endDate
           ? new Date(timer.endDate).toISOString().slice(0, 16)
           : "",
-        duration: timer.duration || "",
+        duration: timer.duration?.toString() || "",
         targetType: timer.targetType || "all",
         targetIds: timer.targetIds || [],
         appearance: {
@@ -75,39 +75,20 @@ export default function TimerFormPage() {
           text: timer.appearance?.text || "Hurry! Sale ends in",
         },
       });
+    } catch (err) {
+      setFetchError(err);
+    } finally {
+      setIsLoading(false);
     }
-  }, [data]);
+  };
 
-  const saveMutation = useMutation({
-    mutationFn: async (timerData) => {
-      const url = isNew ? "/api/timers" : `/api/timers/${id}`;
-      const method = isNew ? "POST" : "PUT";
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(timerData),
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to save timer");
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(["timers"]);
-      shopify.toast.show(
-        isNew ? t("TimerForm.timerCreated") : t("TimerForm.timerUpdated")
-      );
-      navigate("/timers");
-    },
-    onError: (error) => {
-      shopify.toast.show(error.message, { isError: true });
-    },
-  });
+  useEffect(() => {
+    fetchTimer();
+  }, [id]);
 
-  const handleSubmit = () => {
+  const validateForm = useCallback(() => {
     const newErrors = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = t("TimerForm.errorNameRequired");
     }
@@ -119,11 +100,16 @@ export default function TimerFormPage() {
       if (!formData.endDate) {
         newErrors.endDate = t("TimerForm.errorEndDateRequired");
       }
-      if (formData.startDate && formData.endDate && formData.endDate <= formData.startDate) {
+      if (
+        formData.startDate &&
+        formData.endDate &&
+        formData.endDate <= formData.startDate
+      ) {
         newErrors.endDate = t("TimerForm.errorEndDateAfterStart");
       }
     } else {
-      if (!formData.duration || formData.duration <= 0) {
+      const duration = parseInt(formData.duration);
+      if (!formData.duration || isNaN(duration) || duration <= 0) {
         newErrors.duration = t("TimerForm.errorDurationRequired");
       }
     }
@@ -131,6 +117,13 @@ export default function TimerFormPage() {
     if (formData.targetType !== "all" && formData.targetIds.length === 0) {
       newErrors.targetIds = t("TimerForm.errorTargetIdsRequired");
     }
+
+    return newErrors;
+  }, [formData, t]);
+
+  const handleSubmit = useCallback(async () => {
+    setSubmitError(null);
+    const newErrors = validateForm();
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -140,7 +133,7 @@ export default function TimerFormPage() {
     setErrors({});
 
     const submitData = {
-      name: formData.name,
+      name: formData.name.trim(),
       type: formData.type,
       targetType: formData.targetType,
       targetIds: formData.targetIds,
@@ -154,9 +147,55 @@ export default function TimerFormPage() {
       submitData.duration = parseInt(formData.duration);
     }
 
-    saveMutation.mutate(submitData);
+    try {
+      setIsSaving(true);
+      if (isNew) {
+        await api.post("/timers", submitData);
+      } else {
+        await api.put(`/timers/${id}`, submitData);
+      }
+
+      shopify.toast.show(
+        isNew ? t("TimerForm.timerCreated") : t("TimerForm.timerUpdated")
+      );
+      navigate("/timers");
+    } catch (err) {
+      setSubmitError(err.message);
+      shopify.toast.show(err.message, { isError: true });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [formData, isNew, id, validateForm, t, shopify, navigate]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSubmit();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleSubmit]);
+
+  const handleFieldChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    }
   };
 
+  const handleAppearanceChange = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      appearance: { ...prev.appearance, [field]: value },
+    }));
+  };
 
   if (isLoading && !isNew) {
     return (
@@ -165,7 +204,37 @@ export default function TimerFormPage() {
         <Layout>
           <Layout.Section>
             <Card sectioned>
-              <p>{t("TimerForm.loading")}</p>
+              <div style={{ textAlign: "center", padding: "2rem" }}>
+                <Spinner size="large" />
+                <Text as="p" tone="subdued" style={{ marginTop: "1rem" }}>
+                  {t("TimerForm.loading")}
+                </Text>
+              </div>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    );
+  }
+
+  if (fetchError && !isNew) {
+    return (
+      <Page>
+        <TitleBar title={t("TimerForm.title")} />
+        <Layout>
+          <Layout.Section>
+            <Card sectioned>
+              <Banner status="critical">
+                <p>{fetchError.message || "Failed to load timer"}</p>
+              </Banner>
+              <div style={{ marginTop: "1rem" }}>
+                <Button onClick={() => navigate("/timers")}>
+                  {t("TimerForm.cancel")}
+                </Button>
+                <Button onClick={fetchTimer} style={{ marginLeft: "0.5rem" }}>
+                  Retry
+                </Button>
+              </div>
             </Card>
           </Layout.Section>
         </Layout>
@@ -180,7 +249,7 @@ export default function TimerFormPage() {
         primaryAction={{
           content: t("TimerForm.save"),
           onAction: handleSubmit,
-          loading: saveMutation.isLoading,
+          loading: isSaving,
         }}
         secondaryActions={[
           {
@@ -191,27 +260,37 @@ export default function TimerFormPage() {
       />
       <Layout>
         <Layout.Section>
+          {submitError && (
+            <Banner status="critical" onDismiss={() => setSubmitError(null)}>
+              <p>{submitError}</p>
+            </Banner>
+          )}
 
           <FormLayout>
             <Card sectioned>
               <TextField
                 label={t("TimerForm.name")}
                 value={formData.name}
-                onChange={(value) =>
-                  setFormData({ ...formData, name: value })
-                }
+                onChange={(value) => handleFieldChange("name", value)}
                 error={errors.name}
                 autoComplete="off"
+                helpText="Give your timer a descriptive name"
               />
 
               <Select
                 label={t("TimerForm.type")}
                 options={[
                   { label: t("TimerForm.typeFixed"), value: "fixed" },
-                  { label: t("TimerForm.typeEvergreen"), value: "evergreen" },
+                  {
+                    label: t("TimerForm.typeEvergreen"),
+                    value: "evergreen",
+                  },
                 ]}
                 value={formData.type}
-                onChange={(value) => setFormData({ ...formData, type: value })}
+                onChange={(value) => {
+                  handleFieldChange("type", value);
+                  setErrors({});
+                }}
               />
 
               {formData.type === "fixed" ? (
@@ -220,9 +299,7 @@ export default function TimerFormPage() {
                     type="datetime-local"
                     label={t("TimerForm.startDate")}
                     value={formData.startDate}
-                    onChange={(value) =>
-                      setFormData({ ...formData, startDate: value })
-                    }
+                    onChange={(value) => handleFieldChange("startDate", value)}
                     error={errors.startDate}
                   />
 
@@ -230,9 +307,7 @@ export default function TimerFormPage() {
                     type="datetime-local"
                     label={t("TimerForm.endDate")}
                     value={formData.endDate}
-                    onChange={(value) =>
-                      setFormData({ ...formData, endDate: value })
-                    }
+                    onChange={(value) => handleFieldChange("endDate", value)}
                     error={errors.endDate}
                   />
                 </>
@@ -241,12 +316,11 @@ export default function TimerFormPage() {
                   type="number"
                   label={t("TimerForm.duration")}
                   value={formData.duration}
-                  onChange={(value) =>
-                    setFormData({ ...formData, duration: value })
-                  }
+                  onChange={(value) => handleFieldChange("duration", value)}
                   error={errors.duration}
                   helpText={t("TimerForm.durationHelp")}
                   suffix={t("TimerForm.seconds")}
+                  min={1}
                 />
               )}
 
@@ -261,13 +335,15 @@ export default function TimerFormPage() {
                   },
                 ]}
                 value={formData.targetType}
-                onChange={(value) =>
-                  setFormData({ ...formData, targetType: value, targetIds: [] })
-                }
+                onChange={(value) => {
+                  handleFieldChange("targetType", value);
+                  setFormData((prev) => ({ ...prev, targetIds: [] }));
+                  setErrors({});
+                }}
               />
 
               {formData.targetType !== "all" && (
-                <Stack vertical>
+                <Stack vertical spacing="tight">
                   <TextField
                     label={t("TimerForm.targetIds")}
                     value={formData.targetIds.join(", ")}
@@ -276,7 +352,7 @@ export default function TimerFormPage() {
                         .split(",")
                         .map((id) => id.trim())
                         .filter((id) => id.length > 0);
-                      setFormData({ ...formData, targetIds: ids });
+                      handleFieldChange("targetIds", ids);
                     }}
                     helpText={t("TimerForm.targetIdsHelp")}
                     error={errors.targetIds}
@@ -291,74 +367,91 @@ export default function TimerFormPage() {
                   )}
                 </Stack>
               )}
+            </Card>
 
-              <Card sectioned title={t("TimerForm.appearance")}>
-                <TextField
-                  label={t("TimerForm.text")}
-                  value={formData.appearance.text}
-                  onChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      appearance: { ...formData.appearance, text: value },
-                    })
-                  }
-                />
+            <Card sectioned title={t("TimerForm.appearance")}>
+              <TextField
+                label={t("TimerForm.text")}
+                value={formData.appearance.text}
+                onChange={(value) => handleAppearanceChange("text", value)}
+                helpText="Text displayed above the countdown"
+              />
 
-                <Select
-                  label={t("TimerForm.position")}
-                  options={[
-                    { label: t("TimerForm.positionTop"), value: "top" },
-                    { label: t("TimerForm.positionMiddle"), value: "middle" },
-                    { label: t("TimerForm.positionBottom"), value: "bottom" },
-                  ]}
-                  value={formData.appearance.position}
-                  onChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      appearance: { ...formData.appearance, position: value },
-                    })
-                  }
-                />
+              <Select
+                label={t("TimerForm.position")}
+                options={[
+                  { label: t("TimerForm.positionTop"), value: "top" },
+                  { label: t("TimerForm.positionMiddle"), value: "middle" },
+                  { label: t("TimerForm.positionBottom"), value: "bottom" },
+                ]}
+                value={formData.appearance.position}
+                onChange={(value) => handleAppearanceChange("position", value)}
+              />
 
-                <div style={{ marginTop: "1rem" }}>
-                  <label>{t("TimerForm.backgroundColor")}</label>
-                  <input
-                    type="color"
-                    value={formData.appearance.backgroundColor}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        appearance: {
-                          ...formData.appearance,
-                          backgroundColor: e.target.value,
-                        },
-                      })
-                    }
-                    style={{ marginTop: "0.5rem", width: "100px", height: "40px" }}
-                  />
+              <Stack vertical spacing="tight">
+                <div>
+                  <Text as="label" variant="bodyMd" fontWeight="medium">
+                    {t("TimerForm.backgroundColor")}
+                  </Text>
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={formData.appearance.backgroundColor}
+                      onChange={(e) =>
+                        handleAppearanceChange("backgroundColor", e.target.value)
+                      }
+                      style={{
+                        width: "60px",
+                        height: "40px",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <Text as="span" tone="subdued">
+                      {formData.appearance.backgroundColor}
+                    </Text>
+                  </div>
                 </div>
 
-                <div style={{ marginTop: "1rem" }}>
-                  <label>{t("TimerForm.textColor")}</label>
-                  <input
-                    type="color"
-                    value={formData.appearance.textColor}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        appearance: {
-                          ...formData.appearance,
-                          textColor: e.target.value,
-                        },
-                      })
-                    }
-                    style={{ marginTop: "0.5rem", width: "100px", height: "40px" }}
-                  />
+                <div>
+                  <Text as="label" variant="bodyMd" fontWeight="medium">
+                    {t("TimerForm.textColor")}
+                  </Text>
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={formData.appearance.textColor}
+                      onChange={(e) =>
+                        handleAppearanceChange("textColor", e.target.value)
+                      }
+                      style={{
+                        width: "60px",
+                        height: "40px",
+                        cursor: "pointer",
+                      }}
+                    />
+                    <Text as="span" tone="subdued">
+                      {formData.appearance.textColor}
+                    </Text>
+                  </div>
                 </div>
-              </Card>
+              </Stack>
             </Card>
           </FormLayout>
-          
+
           <Card sectioned>
             <Stack distribution="trailing">
               <Button onClick={() => navigate("/timers")}>
@@ -367,7 +460,7 @@ export default function TimerFormPage() {
               <Button
                 primary
                 onClick={handleSubmit}
-                loading={saveMutation.isLoading}
+                loading={isSaving}
               >
                 {t("TimerForm.save")}
               </Button>

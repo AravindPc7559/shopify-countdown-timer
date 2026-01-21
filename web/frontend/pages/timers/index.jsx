@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Page,
   Layout,
@@ -7,55 +7,66 @@ import {
   Badge,
   Button,
   EmptyState,
+  Spinner,
+  Banner,
+  Modal,
   Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import api from "../../utils/api.js";
 
 export default function TimersPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const queryClient = useQueryClient();
+  const [timers, setTimers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [deleteModalActive, setDeleteModalActive] = useState(false);
+  const [timerToDelete, setTimerToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const {
-    data,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["timers"],
-    queryFn: async () => {
-      const response = await fetch("/api/timers");
-      if (!response.ok) throw new Error("Failed to fetch timers");
-      return response.json();
-    },
-  });
+  const fetchTimers = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await api.get("/timers");
+      setTimers(data.timers || []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const deleteMutation = useMutation({
-    mutationFn: async (timerId) => {
-      const response = await fetch(`/api/timers/${timerId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete timer");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(["timers"]);
+  useEffect(() => {
+    fetchTimers();
+  }, []);
+
+  const handleDeleteClick = (timerId, timerName) => {
+    setTimerToDelete({ id: timerId, name: timerName });
+    setDeleteModalActive(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!timerToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await api.delete(`/timers/${timerToDelete.id}`);
       shopify.toast.show(t("TimersPage.timerDeleted"));
-    },
-    onError: () => {
-      shopify.toast.show(t("TimersPage.errorDeletingTimer"), {
+      setDeleteModalActive(false);
+      setTimerToDelete(null);
+      await fetchTimers();
+    } catch (err) {
+      shopify.toast.show(err.message || t("TimersPage.errorDeletingTimer"), {
         isError: true,
       });
-    },
-  });
-
-  const handleDelete = (timerId) => {
-    if (window.confirm(t("TimersPage.confirmDelete"))) {
-      deleteMutation.mutate(timerId);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -71,33 +82,40 @@ export default function TimersPage() {
     return <Badge {...statusMap[status]} />;
   };
 
-  const rows = data?.timers?.map((timer) => [
+  const formatTarget = (timer) => {
+    if (timer.targetType === "all") {
+      return t("TimersPage.targetAll");
+    }
+    const count = timer.targetIds?.length || 0;
+    const type =
+      timer.targetType === "products"
+        ? t("TimersPage.targetProducts")
+        : t("TimersPage.targetCollections");
+    return `${type} (${count})`;
+  };
+
+  const rows = timers.map((timer) => [
     timer.name,
-    timer.type === "fixed" ? t("TimersPage.typeFixed") : t("TimersPage.typeEvergreen"),
-    timer.targetType === "all"
-      ? t("TimersPage.targetAll")
-      : timer.targetType === "products"
-      ? `${t("TimersPage.targetProducts")} (${timer.targetIds.length})`
-      : `${t("TimersPage.targetCollections")} (${timer.targetIds.length})`,
+    timer.type === "fixed"
+      ? t("TimersPage.typeFixed")
+      : t("TimersPage.typeEvergreen"),
+    formatTarget(timer),
     timer.impressions || 0,
     getStatusBadge(timer.status),
-    <div key={timer._id}>
-      <Button
-        size="slim"
-        onClick={() => navigate(`/timers/${timer._id}`)}
-      >
+    <div key={timer._id} style={{ display: "flex", gap: "8px" }}>
+      <Button size="slim" onClick={() => navigate(`/timers/${timer._id}`)}>
         {t("TimersPage.edit")}
       </Button>
       <Button
         size="slim"
         tone="critical"
-        onClick={() => handleDelete(timer._id)}
-        loading={deleteMutation.isLoading}
+        onClick={() => handleDeleteClick(timer._id, timer.name)}
+        loading={isDeleting && timerToDelete?.id === timer._id}
       >
         {t("TimersPage.delete")}
       </Button>
     </div>,
-  ]) || [];
+  ]);
 
   return (
     <Page>
@@ -112,19 +130,21 @@ export default function TimersPage() {
         <Layout.Section>
           {isLoading ? (
             <Card sectioned>
-              <Text>{t("TimersPage.loading")}</Text>
+              <div style={{ textAlign: "center", padding: "2rem" }}>
+                <Spinner size="large" />
+                <Text as="p" tone="subdued" style={{ marginTop: "1rem" }}>
+                  {t("TimersPage.loading")}
+                </Text>
+              </div>
             </Card>
           ) : error ? (
             <Card sectioned>
-              <EmptyState
-                heading={t("TimersPage.errorHeading")}
-                action={{
-                  content: t("TimersPage.retry"),
-                  onAction: () => queryClient.invalidateQueries(["timers"]),
-                }}
-              >
-                <p>{t("TimersPage.errorMessage")}</p>
-              </EmptyState>
+              <Banner status="critical" onDismiss={() => setError(null)}>
+                <p>{error.message || t("TimersPage.errorMessage")}</p>
+              </Banner>
+              <div style={{ marginTop: "1rem", textAlign: "center" }}>
+                <Button onClick={fetchTimers}>{t("TimersPage.retry")}</Button>
+              </div>
             </Card>
           ) : rows.length === 0 ? (
             <Card sectioned>
@@ -163,6 +183,41 @@ export default function TimersPage() {
           )}
         </Layout.Section>
       </Layout>
+
+      <Modal
+        open={deleteModalActive}
+        onClose={() => {
+          setDeleteModalActive(false);
+          setTimerToDelete(null);
+        }}
+        title={t("TimersPage.confirmDelete")}
+        primaryAction={{
+          content: t("TimersPage.delete"),
+          destructive: true,
+          onAction: handleDeleteConfirm,
+          loading: isDeleting,
+        }}
+        secondaryActions={[
+          {
+            content: t("TimerForm.cancel"),
+            onAction: () => {
+              setDeleteModalActive(false);
+              setTimerToDelete(null);
+            },
+          },
+        ]}
+      >
+        <Modal.Section>
+          <Text as="p">
+            {timerToDelete && (
+              <>
+                Are you sure you want to delete "{timerToDelete.name}"? This
+                action cannot be undone.
+              </>
+            )}
+          </Text>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }
