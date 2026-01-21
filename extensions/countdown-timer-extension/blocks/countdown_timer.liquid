@@ -9,24 +9,12 @@
   id="countdown-timer-{{ block.id }}" 
   class="countdown-timer-container"
   data-product-id="{{ product.id }}"
-  data-product-handle="{{ product.handle }}"
   data-shop="{{ shop.permanent_domain }}"
   data-api-url="{{ block.settings.api_url }}"
   style="display: none;"
->
-  {% comment %} Timer will be rendered by JavaScript {% endcomment %}
-</div>
+></div>
 
 <script src="{{ 'countdown-timer.js' | asset_url }}" defer></script>
-
-{% comment %} Debug mode - remove in production {% endcomment %}
-<script>
-  console.log('Countdown Timer Block Loaded:', {
-    blockId: '{{ block.id }}',
-    productId: '{{ product.id }}',
-    shop: '{{ shop.permanent_domain }}'
-  });
-</script>
 
 {% schema %}
 {
@@ -51,4 +39,3 @@
   ]
 }
 {% endschema %}
-
