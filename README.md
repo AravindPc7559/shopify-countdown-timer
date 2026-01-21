@@ -220,30 +220,3 @@ Increments the impression count for a timer. This is called automatically when a
   "impressions": 151
 }
 ```
-
-## Project Structure
-
-```
-shopify-countdown-timer/
-├── web/                    # Backend server
-│   ├── controllers/         # Request handlers
-│   ├── models/              # MongoDB models
-│   ├── routes/              # API routes
-│   ├── utils/               # Helper functions
-│   ├── tests/               # Unit tests
-│   └── frontend/            # React admin UI
-└── extensions/              # Theme app extension
-    └── countdown-timer-extension/
-        ├── assets/          # JavaScript and CSS
-        └── blocks/          # Liquid template
-```
-
-## Development Tips
-
-- The extension needs the app URL configured in the block settings. When running `npm run dev`, copy the tunnel URL from your terminal and paste it in the Countdown Timer block settings.
-- Timer status is calculated on-the-fly, so you don't need to manually update expired timers.
-- For testing collection targeting, make sure your app has `read_products` scope and the shop has an active session.
-
-## License
-
-UNLICENSED
