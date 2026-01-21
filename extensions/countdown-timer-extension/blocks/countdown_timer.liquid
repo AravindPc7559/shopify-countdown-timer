@@ -1,0 +1,54 @@
+{% comment %}
+  Countdown Timer Block
+  Displays a countdown timer for promotions and discounts
+{% endcomment %}
+
+<link rel="stylesheet" href="{{ 'countdown-timer.css' | asset_url }}">
+
+<div 
+  id="countdown-timer-{{ block.id }}" 
+  class="countdown-timer-container"
+  data-product-id="{{ product.id }}"
+  data-product-handle="{{ product.handle }}"
+  data-shop="{{ shop.permanent_domain }}"
+  data-api-url="{{ block.settings.api_url }}"
+  style="display: none;"
+>
+  {% comment %} Timer will be rendered by JavaScript {% endcomment %}
+</div>
+
+<script src="{{ 'countdown-timer.js' | asset_url }}" defer></script>
+
+{% comment %} Debug mode - remove in production {% endcomment %}
+<script>
+  console.log('Countdown Timer Block Loaded:', {
+    blockId: '{{ block.id }}',
+    productId: '{{ product.id }}',
+    shop: '{{ shop.permanent_domain }}'
+  });
+</script>
+
+{% schema %}
+{
+  "name": "Countdown Timer",
+  "target": "section",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Countdown Timer Settings"
+    },
+    {
+      "type": "paragraph",
+      "content": "The countdown timer will automatically display if an active timer is configured for this product in the app admin. If multiple timers are active, the first matching timer will be displayed."
+    },
+    {
+      "type": "text",
+      "id": "api_url",
+      "label": "App API URL (Required)",
+      "info": "Enter your app's URL (e.g., https://xxxx.ngrok.io when running 'npm run dev'). You can find this URL in your terminal when you start the app.",
+      "placeholder": "https://your-app-url.ngrok.io"
+    }
+  ]
+}
+{% endschema %}
+

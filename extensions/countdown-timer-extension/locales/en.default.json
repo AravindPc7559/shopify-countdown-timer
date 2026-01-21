@@ -1,4 +1,7 @@
 {
+  "countdown_timer": {
+    "default_text": "Hurry! Sale ends in"
+  },
   "ratings": {
     "stars": {
       "label": "Ratings"

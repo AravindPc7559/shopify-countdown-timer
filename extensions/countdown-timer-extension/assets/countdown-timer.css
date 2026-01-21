@@ -1,0 +1,171 @@
+/**
+ * Countdown Timer Styles
+ * Optimized for performance and minimal layout shift
+ */
+
+.countdown-timer-container {
+  width: 100%;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  /* Prevent layout shift */
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.countdown-timer-display {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.countdown-timer-text {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.countdown-timer-time {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.countdown-timer-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 60px;
+  padding: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+.countdown-timer-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown-timer-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-top: 0.25rem;
+}
+
+/* Position variants */
+.countdown-timer-position-top {
+  order: -1;
+}
+
+.countdown-timer-position-middle {
+  order: 0;
+}
+
+.countdown-timer-position-bottom {
+  order: 999;
+}
+
+/* Urgent state - when < 1 hour remaining */
+.countdown-timer-urgent {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.countdown-timer-urgent .countdown-timer-value {
+  animation: shake 0.5s ease-in-out infinite;
+  color: #ff4444;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  75% {
+    transform: translateX(2px);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .countdown-timer-container {
+    padding: 0.75rem;
+    min-height: 70px;
+  }
+
+  .countdown-timer-text {
+    font-size: 0.875rem;
+  }
+
+  .countdown-timer-time {
+    gap: 0.5rem;
+  }
+
+  .countdown-timer-unit {
+    min-width: 50px;
+    padding: 0.4rem;
+  }
+
+  .countdown-timer-value {
+    font-size: 1.25rem;
+  }
+
+  .countdown-timer-label {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .countdown-timer-unit {
+    min-width: 45px;
+    padding: 0.35rem;
+  }
+
+  .countdown-timer-value {
+    font-size: 1.1rem;
+  }
+
+  .countdown-timer-label {
+    font-size: 0.65rem;
+  }
+}
+
+/* Prevent Cumulative Layout Shift (CLS) */
+.countdown-timer-container:not([style*="display: none"]) {
+  visibility: visible;
+}
+
+.countdown-timer-container[style*="display: none"] {
+  visibility: hidden;
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
+

@@ -1,8 +1,8 @@
-// @ts-check
 import { join } from "path";
 import { readFileSync } from "fs";
 import express from "express";
 import serveStatic from "serve-static";
+import cors from "cors";
 
 import shopify from "./shopify.js";
 import productCreator from "./product-creator.js";
@@ -26,6 +26,14 @@ const STATIC_PATH =
 
 const app = express();
 
+const corsOptions = {
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
+
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
@@ -38,10 +46,9 @@ app.post(
 );
 
 app.use(express.json());
+
 app.use("/api/timers/public", publicRouter);
-
 app.use("/api/*", shopify.validateAuthenticatedSession());
-
 app.use("/api/timers", timerRoutes);
 
 app.get("/api/products/count", async (_req, res) => {
@@ -60,10 +67,9 @@ app.get("/api/products/count", async (_req, res) => {
 
     res.status(200).send({ count: countData.data.productsCount.count });
   } catch (error) {
-    console.error("Error fetching product count:", error.message);
-    res.status(500).send({ 
+    res.status(500).send({
       error: error.message || "Failed to fetch product count",
-      count: 0 
+      count: 0
     });
   }
 });
@@ -75,7 +81,6 @@ app.post("/api/products", async (_req, res) => {
   try {
     await productCreator(res.locals.shopify.session);
   } catch (e) {
-    console.log(`Failed to process products/create: ${e.message}`);
     status = 500;
     error = e.message;
   }
@@ -85,9 +90,7 @@ app.post("/api/products", async (_req, res) => {
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
-// Let Shopify's ensureInstalledOnShop() handle all routes including root
-// This properly handles OAuth flow and redirects to admin.shopify.com when needed
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
+app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res) => {
   return res
     .status(200)
     .set("Content-Type", "text/html")
@@ -98,4 +101,12 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
     );
 });
 
-app.listen(PORT);
+app.listen(PORT, () => {
+  console.log(`Backend server listening on port ${PORT}`);
+}).on('error', (err) => {
+  console.error('Failed to start backend server:', err);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please free the port or set a different BACKEND_PORT.`);
+  }
+  process.exit(1);
+});
